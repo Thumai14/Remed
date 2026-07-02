@@ -1,0 +1,111 @@
+// Remed v2 — logiciel de coordination du dépannage inter-PUI.
+// Dev: SQLite. Prod: changer provider → "postgresql" + DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────── Organisation & utilisateurs ────────────────
+
+model Organization {
+  id              String    @id @default(cuid())
+  name            String
+  type            String    // HOPITAL | CLINIQUE | EHPAD | CENTRE_SOINS | AUTRE
+  finess          String    @unique
+  address         String
+  city            String
+  licenceVerified Boolean   @default(false)
+  plan            String    @default("FREE") // FREE | PRO
+  planExpiresAt   DateTime?
+  users           User[]
+  listings        Listing[]
+  offers          Offer[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         String    @default("PHARMACIEN")
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  messages     Message[]
+  createdAt    DateTime  @default(now())
+}
+
+// ──────────────── Disponibilités & demandes ───────────────────
+
+model Listing {
+  id             String   @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id])
+  medicationName String
+  cipCode        String?
+  dosage         String
+  form           String
+  batchNumber    String
+  quantity       Int
+  unitCostCents  Int      // prix d'achat unitaire (centimes) — prix coûtant
+  expiryDate     DateTime
+  storage        String   @default("AMBIANT") // AMBIANT | FRIGO | CONGELE
+  notes          String?
+  status         String   @default("ACTIVE")  // ACTIVE | RESERVED | SOLD | EXPIRED | CANCELLED
+  offers         Offer[]
+  createdAt      DateTime @default(now())
+
+  @@index([status, expiryDate])
+  @@index([orgId])
+}
+
+model Offer {
+  id          String   @id @default(cuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id])
+  buyerOrgId  String
+  buyerOrg    Organization @relation(fields: [buyerOrgId], references: [id])
+  quantity    Int
+  needReason  String   // RUPTURE | TENSION | BESOIN_URGENT
+  needDetails String   // justification du besoin — figure au bon de cession
+  status      String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | WITHDRAWN
+  messages    Message[]
+  cession     Cession?
+  createdAt   DateTime @default(now())
+
+  @@index([buyerOrgId])
+  @@index([listingId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  offerId   String
+  offer     Offer    @relation(fields: [offerId], references: [id])
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([offerId])
+}
+
+// ──────────────── Dossier de cession (documentaire) ──────────
+
+model Cession {
+  id             String    @id @default(cuid())
+  offerId        String    @unique
+  offer          Offer     @relation(fields: [offerId], references: [id])
+  amountCents    Int       // quantité × prix coûtant (info documentaire)
+  arsNotifiedAt  DateTime?
+  status         String    @default("DOCUMENTS") // DOCUMENTS | SHIPPED | DELIVERED | CLOSED | DISPUTED
+  carrier        String?
+  trackingNumber String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

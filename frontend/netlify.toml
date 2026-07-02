@@ -1,0 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# API proxy → backend (Render / Railway)
+# Décommenter et adapter l'URL quand le backend est déployé :
+# [[redirects]]
+#   from = "/api/*"
+#   to = "https://remed-api.onrender.com/api/:splat"
+#   status = 200
+
+# SPA catch-all : toutes les routes client → index.html
+# C'est ÇA qui corrige le 404 Netlify sur refresh / accès direct
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
